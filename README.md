@@ -10,7 +10,7 @@ The stubs are checked against the runtime library with mypy's `stubtest`; [Versi
 
 ## Install
 
-Releases are published to the Agnos package index at `https://pkgs.agnos.one/simple/`, not PyPI. With uv:
+Releases are published to the Agnos package index at `https://pkgs.agnos.one/simple/`. With uv:
 
 ```toml
 # pyproject.toml
