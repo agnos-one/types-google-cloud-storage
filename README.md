@@ -31,20 +31,19 @@ The package has no runtime code: install `google-cloud-storage` itself as a regu
 
 ## What's covered
 
-The stubs cover the core object API. Every stubbed method has the library's full signature, so all its parameters
-can be passed, positionally or by keyword, as at runtime.
+The stubs cover `Client`, `Bucket` and `Blob` and the modules around them. Every stubbed method has the library's
+full signature, so all its parameters can be passed, positionally or by keyword, as at runtime.
 
 | Module | Stubbed |
 | --- | --- |
-| `google.cloud.storage` | `Client`, `Bucket`, `Blob`, `__version__` |
-| `.client` | `Client`: constructor, `bucket`, `get_bucket`, `lookup_bucket`, `list_blobs` |
-| `.bucket` | `Bucket`: constructor, `name`, `client`, `user_project`, `path`, `blob`, `exists`, `get_blob`, `list_blobs`, `delete_blob`; `BlobIterator`, `BlobPage` (stub-only, see [Notes](#notes)) |
-| `.blob` | `Blob`: constructor, metadata properties (`size`, `updated`, `content_type`, `metadata`, ...), `exists`, `reload`, `patch`, `delete`, `download_as_bytes`, `download_as_text`, `download_to_filename`, `upload_from_string`, `upload_from_file`, `upload_from_filename`, `generate_signed_url` |
-| `.retry` | `DEFAULT_RETRY`, `ConditionalRetryPolicy`, the `DEFAULT_RETRY_IF_*` policies |
+| `.client`, `.bucket`, `.blob` | `Client`, `Bucket`, `Blob` and their helper classes, except ACLs, notifications and HMAC keys |
+| `.fileio`, `.batch`, `.transfer_manager` | `BlobReader` / `BlobWriter` (for `Blob.open`), `Batch`, the transfer functions |
+| `.retry`, `.ip_filter`, `.constants`, `.exceptions` | all (in `.exceptions`, the exception classes) |
 
-Anything else (`Batch`, ACLs, bucket configuration, `copy_blob`, ...) is not stubbed yet. The package is marked
-`partial` (PEP 561), so modules it doesn't stub, such as `google.cloud.exceptions`, still resolve to the installed
-libraries.
+Not stubbed yet: the `acl`, `notification` and `hmac_key` modules and the members that use them (`Bucket.acl`,
+`Bucket.notification`, `Client.list_hmac_keys`, and so on), the deprecated `Blob.download_as_string`, and
+`Bucket.clear_lifecyle_rules`, a misspelled alias. The package is marked `partial` (PEP 561), so modules it doesn't
+stub, such as `google.cloud.exceptions`, still resolve to the installed libraries.
 
 ```python
 from datetime import timedelta
@@ -62,10 +61,22 @@ for item in client.list_blobs("my-bucket", prefix="reports/"):  # Blob
 
 ## Notes
 
-- **`BlobIterator` and `BlobPage` exist only in the stubs.** `list_blobs` returns a `BlobIterator`, typed as an
-  iterator of `Blob` with `prefixes`, `next_page_token`, `num_results` and `pages` (an iterator of `BlobPage`, each
-  an iterator of `Blob`); at runtime they are an `HTTPIterator` and its `Page`s from `google-api-core`. To annotate
-  with them, import them under `if TYPE_CHECKING:` from `google.cloud.storage.bucket`.
+- **Some names exist only in the stubs:** the iterator and page types, and `TypedDict`s for the dicts that callers
+  build. To annotate with them, import them under `if TYPE_CHECKING:`.
+  - `list_blobs` returns a `BlobIterator` and `list_buckets` a `BucketIterator`: iterators of `Blob` / `Bucket` with
+    `next_page_token`, `num_results` and `pages`, an iterator of `BlobPage` / `BucketPage`; a `BlobIterator` also
+    has `prefixes`, the "folders" a `delimiter` groups blobs into, complete once it is exhausted. At runtime they are
+    an `HTTPIterator` and its `Page`s from `google-api-core`.
+  - `bucket.CorsPolicy` is one entry of `Bucket.cors`, `client.PostPolicyCondition` one condition of a POST policy
+    (annotate a list built in a variable as `list[PostPolicyCondition]`), `client.SignedPostPolicyV4` what
+    `generate_signed_post_policy_v4` returns, and `transfer_manager.UploadKwargs` / `DownloadKwargs` /
+    `ChunkDownloadKwargs` / `BlobConstructorKwargs` the `*_kwargs` dicts of the transfer manager. At runtime they are
+    plain `dict`s.
+- **`Blob.open` needs a literal mode.** Its overloads return `TextIOWrapper` for `"r"` / `"rt"` / `"w"` / `"wt"`,
+  `BlobReader` for `"rb"` and `BlobWriter` for `"wb"`, and reject the other modes, which raise at runtime. A mode held
+  in a `str` variable has to be narrowed to one of those literals first.
+- **Deprecated members are marked `@deprecated`**, such as `Bucket.from_string` and the `Bucket.location` setter, so
+  pyright strict reports their use (`reportDeprecated`).
 - **Metadata properties are `None` until loaded.** A `Blob` from `bucket.blob(...)` has no metadata until
   `reload()`; those from `get_blob` and `list_blobs` do.
 - **`Bucket.name` and `Blob.name` are `str`**, though the library technically allows `None`: in practice they are
@@ -80,3 +91,4 @@ signatures haven't changed.
 | Stubs | Checked against `google-cloud-storage` |
 | --- | --- |
 | 0.1.0 | 3.17.2 |
+| 0.2.0 | 3.17.2 |

@@ -39,7 +39,8 @@ src/google-stubs/
 ├── py.typed             # "partial": modules not stubbed here fall back to the installed libraries
 └── cloud/
     ├── __init__.pyi     # empty; see below
-    └── storage/         # __init__, client, bucket, blob, retry
+    └── storage/         # __init__, client, bucket, blob, fileio, batch, transfer_manager, ip_filter, retry,
+                         # constants, exceptions
 tests/
 ├── check_storage.py     # type-checking cases (imports, kwargs, stub-only names), never run
 └── allowlist.txt        # stub-only names stubtest would report as missing at runtime

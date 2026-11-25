@@ -3,6 +3,10 @@
     "gitignore": true,
     // markdownlint rules
     "config": {
+        // Keep a Changelog repeats "### Added" etc. under every version
+        "no-duplicate-heading": {
+            "siblings_only": true
+        },
         "table-column-style": {
             "style": "compact"
         },
