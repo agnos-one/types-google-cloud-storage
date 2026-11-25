@@ -67,7 +67,8 @@ class Blob:
     # a `None` value deletes that key on the next `patch()`
     @metadata.setter
     def metadata(self, value: Mapping[str, str | None] | None) -> None: ...
-    # never `None`: an empty `ObjectContexts` until the blob is loaded or the contexts are set
+    # an empty `ObjectContexts` until the blob is loaded or the contexts are set; after `contexts = None` the getter
+    # raises `AttributeError` until the blob is patched or reloaded
     @property
     def contexts(self) -> ObjectContexts: ...
     # a dict in the JSON API shape, `{"custom": {key: {"value": ...}}}`, is accepted too; it is sent as JSON as is
@@ -270,7 +271,7 @@ class Blob:
     def upload_from_string(
         self,
         data: bytes | str,
-        content_type: str = "text/plain",
+        content_type: str | None = "text/plain",  # `None`: the blob's `content_type`, or application/octet-stream
         client: Client | None = None,
         predefined_acl: str | None = None,
         if_generation_match: int | None = None,
@@ -323,8 +324,8 @@ class Blob:
         content_type: str | None = None,
         response_disposition: str | None = None,
         response_type: str | None = None,
-        generation: int | None = None,
-        headers: Mapping[str, str] | None = None,
+        generation: int | str | None = None,
+        headers: dict[str, str] | None = None,  # a `dict`: the signed headers (`Host`, ...) are added to it
         query_parameters: Mapping[str, str] | None = None,
         client: Client | None = None,
         credentials: Credentials | None = None,

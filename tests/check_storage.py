@@ -15,7 +15,7 @@ from google.cloud.storage.retry import DEFAULT_RETRY
 if TYPE_CHECKING:
     # stub-only: they don't exist at runtime
     from google.cloud.storage.bucket import BlobIterator, BlobPage, CorsPolicy
-    from google.cloud.storage.client import BucketPage, PostPolicyCondition, SignedPostPolicyV4
+    from google.cloud.storage.client import BucketPage, ClientOptionsDict, PostPolicyCondition
     from google.cloud.storage.transfer_manager import UploadKwargs
 
 
@@ -122,9 +122,9 @@ def check_lifecycle_kwargs(bucket: storage.Bucket) -> None:
     bucket.add_lifecycle_delete_rule(age=30, matches_prefix=["tmp/"])
     bucket.add_lifecycle_set_storage_class_rule("COLDLINE", created_before=date(2026, 1, 1))
     bucket.add_lifecycle_delete_rule(max_age=30)  # pyright: ignore[reportCallIssue]
-    # `age` is the only condition of the abort-incomplete-upload rule
-    bucket.add_lifecycle_abort_incomplete_multipart_upload_rule(age=7)
-    bucket.add_lifecycle_abort_incomplete_multipart_upload_rule(matches_prefix=["x"])  # pyright: ignore[reportCallIssue]
+    # the abort-incomplete-upload rule takes `age`, `matches_prefix` and `matches_suffix` only
+    bucket.add_lifecycle_abort_incomplete_multipart_upload_rule(age=7, matches_prefix=["tmp/"])
+    bucket.add_lifecycle_abort_incomplete_multipart_upload_rule(is_live=False)  # pyright: ignore[reportCallIssue]
     # the setter takes the rule classes and the rules read back alike
     bucket.lifecycle_rules = [
         *bucket.lifecycle_rules,
@@ -181,6 +181,13 @@ def check_client_factories(info: dict[str, str]) -> None:
     storage.Client.from_service_account_info(info, "project")  # pyright: ignore[reportArgumentType]
 
 
+def check_client_options() -> None:
+    # a dict built in a variable needs the stub-only type: the parameter is a (mutable) `dict`, not a `Mapping`
+    options: ClientOptionsDict = {"api_endpoint": "http://localhost:4443"}
+    storage.Client(client_options=options, api_key="key")
+    storage.Client(client_options={"endpoint": "http://localhost:4443"})  # pyright: ignore[reportArgumentType]
+
+
 def bucket_names(page: BucketPage) -> list[str]:
     return [bucket.name for bucket in page]
 
@@ -192,8 +199,8 @@ def check_bucket_pages(client: storage.Client) -> None:
             assert_type(bucket, storage.Bucket)
 
 
-def post_policy(client: storage.Client) -> SignedPostPolicyV4:
-    return client.generate_signed_post_policy_v4(
+def check_post_policy(client: storage.Client) -> None:
+    client.generate_signed_post_policy_v4(
         "bucket",
         "uploads/a.txt",
         expiration=timedelta(minutes=10),

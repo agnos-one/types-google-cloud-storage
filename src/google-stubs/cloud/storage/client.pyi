@@ -1,4 +1,4 @@
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from datetime import datetime, timedelta
 from os import PathLike
 from types import TracebackType
@@ -20,7 +20,21 @@ type _Checksum = Literal["md5", "crc32c", "auto"] | None
 # Stub-only, like `BucketIterator`: one POST policy condition, such as `{"acl": "public-read"}`,
 # `["starts-with", "$key", "uploads/"]` or `["content-length-range", 0, 1048576]`. Annotate a list of conditions
 # built in a variable as `list[PostPolicyCondition]`.
-type PostPolicyCondition = Mapping[str, str] | list[str | int]
+type PostPolicyCondition = Mapping[str, str] | Sequence[str | int]
+
+# Stub-only, like `BucketIterator`: `client_options` given as a dict, with the options `ClientOptions` takes. It
+# has to be a real `dict` (any other mapping raises `AttributeError`), and `api_key=` is written into it. Annotate
+# one built in a variable as `ClientOptionsDict`.
+class ClientOptionsDict(TypedDict, total=False):
+    api_endpoint: str | None
+    client_cert_source: Callable[[], tuple[bytes, bytes]] | None
+    client_encrypted_cert_source: Callable[[], tuple[str, str, bytes]] | None
+    quota_project_id: str | None
+    credentials_file: str | None  # deprecated in google-api-core
+    scopes: Sequence[str] | None
+    api_key: str | None
+    api_audience: str | None
+    universe_domain: str | None
 
 # the `Client` constructor arguments the `from_service_account_*` factories pass on through `**kwargs`; not
 # `credentials`, which the factories set (passing it raises `TypeError`)
@@ -28,7 +42,7 @@ class _ClientKwargs(TypedDict, total=False):
     project: str | None
     _http: object | None  # a `requests.Session`, such as google-auth's `AuthorizedSession`
     client_info: ClientInfo | None
-    client_options: ClientOptions | Mapping[str, object] | None
+    client_options: ClientOptions | ClientOptionsDict | None
     use_auth_w_custom_endpoint: bool
     extra_headers: Mapping[str, str]
     api_key: str | None
@@ -36,6 +50,9 @@ class _ClientKwargs(TypedDict, total=False):
 # Stub-only, so import it only for annotations (under `if TYPE_CHECKING:`): at runtime `list_buckets` returns a
 # `google.api_core.page_iterator.HTTPIterator` of `Bucket`s.
 class BucketIterator(Iterable[Bucket]):
+    client: Client
+    max_results: int | None
+    page_number: int
     next_page_token: str | None
     num_results: int
     # a generator of the pages; raises `ValueError` once iteration (over pages or buckets) has started
@@ -49,6 +66,9 @@ class BucketIterator(Iterable[Bucket]):
 class BucketPage(Iterator[Bucket]):
     # the names of the buckets the response couldn't reach (`return_partial_success=True`), set on every page
     unreachable: list[str]
+    # the JSON response the page was built from
+    @property
+    def raw_page(self) -> dict[str, object]: ...
     @property
     def num_items(self) -> int: ...
     @property
@@ -56,8 +76,8 @@ class BucketPage(Iterator[Bucket]):
     def __iter__(self) -> BucketPage: ...
     def __next__(self) -> Bucket: ...
 
-# Stub-only, like `BucketIterator`: at runtime the plain `dict` `generate_signed_post_policy_v4` returns.
-class SignedPostPolicyV4(TypedDict):
+# what `generate_signed_post_policy_v4` returns
+class _SignedPostPolicyV4(TypedDict):
     url: str
     # the form fields to send with the upload: the policy's `fields` plus `key`, `policy`, `x-goog-*`
     fields: dict[str, str]
@@ -71,7 +91,7 @@ class Client:
         credentials: Credentials | None = None,
         _http: object | None = None,  # a `requests.Session`, such as google-auth's `AuthorizedSession`
         client_info: ClientInfo | None = None,
-        client_options: ClientOptions | Mapping[str, object] | None = None,
+        client_options: ClientOptions | ClientOptionsDict | None = None,
         use_auth_w_custom_endpoint: bool = True,
         extra_headers: Mapping[str, str] = ...,
         *,
@@ -216,4 +236,4 @@ class Client:
         scheme: str = "http",
         service_account_email: str | None = None,
         access_token: str | None = None,
-    ) -> SignedPostPolicyV4: ...
+    ) -> _SignedPostPolicyV4: ...

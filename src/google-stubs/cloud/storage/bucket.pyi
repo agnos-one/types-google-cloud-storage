@@ -20,6 +20,9 @@ type _ConditionValue = int | str | bool | list[str]
 # Stub-only, so import it only for annotations (under `if TYPE_CHECKING:`): at runtime `list_blobs` returns a
 # `google.api_core.page_iterator.HTTPIterator` of `Blob`s.
 class BlobIterator(Iterable[Blob]):
+    client: Client
+    max_results: int | None
+    page_number: int
     next_page_token: str | None
     num_results: int
     # filled in page by page, so it is complete only once the iterator is exhausted
@@ -33,6 +36,11 @@ class BlobIterator(Iterable[Blob]):
 
 # Stub-only, like `BlobIterator`: at runtime a `google.api_core.page_iterator.Page` of `Blob`s.
 class BlobPage(Iterator[Blob]):
+    # the prefixes of this page; `BlobIterator.prefixes` collects those of the pages fetched so far
+    prefixes: tuple[str, ...]
+    # the JSON response the page was built from
+    @property
+    def raw_page(self) -> dict[str, object]: ...
     @property
     def num_items(self) -> int: ...
     @property
@@ -85,9 +93,12 @@ class _LifecycleRuleConditionsKwargs(TypedDict, total=False):
     matches_prefix: list[str] | None
     matches_suffix: list[str] | None
 
-# `age` is the only condition `LifecycleRuleAbortIncompleteMultipartUpload` supports
+# the conditions Cloud Storage supports for `LifecycleRuleAbortIncompleteMultipartUpload` (the docstring, which
+# names `age` only, predates the other two; the runtime passes any condition on, and the API rejects the rest)
 class _AbortIncompleteMultipartUploadKwargs(TypedDict, total=False):
     age: int | None
+    matches_prefix: list[str] | None
+    matches_suffix: list[str] | None
 
 # the keys `SoftDeletePolicy` reads from `**kw`
 class _SoftDeletePolicyKwargs(TypedDict, total=False):
@@ -246,8 +257,8 @@ class Bucket:
     STORAGE_CLASSES: ClassVar[tuple[str, ...]]
     name: str
     # Metadata: `None` until the bucket is loaded (`reload`, `get_bucket`, `list_buckets`) or the field is set
-    # locally, except the `bool`s, which are `False` until then. The setters, here and below, record a change that
-    # `patch()` sends.
+    # locally, except the three typed `bool`, which read `False` until then. The setters, here and below, record a
+    # change that `patch()` sends.
     default_event_based_hold: bool | None
     default_kms_key_name: str | None
     versioning_enabled: bool
@@ -620,7 +631,6 @@ class Bucket:
         if_metageneration_not_match: int | None = None,
         retry: _Retry = ...,
     ) -> None: ...
-    # raises `ValueError` unless the bucket is loaded and has an unlocked retention policy
     # the V2 policy document; `Client.generate_signed_post_policy_v4` makes the V4 one
     def generate_upload_policy(
         self,
@@ -628,6 +638,7 @@ class Bucket:
         expiration: datetime | None = None,  # in UTC; `None`: an hour from now
         client: Client | None = None,
     ) -> _UploadPolicyFields: ...
+    # raises `ValueError` unless the bucket is loaded and has an unlocked retention policy
     def lock_retention_policy(
         self,
         client: Client | None = None,
@@ -639,7 +650,7 @@ class Bucket:
         expiration: int | datetime | timedelta | None = None,
         api_access_endpoint: str | None = None,
         method: str = "GET",
-        headers: Mapping[str, str] | None = None,
+        headers: dict[str, str] | None = None,  # a `dict`: the signed headers (`Host`, ...) are added to it
         query_parameters: Mapping[str, str] | None = None,
         client: Client | None = None,
         credentials: Credentials | None = None,

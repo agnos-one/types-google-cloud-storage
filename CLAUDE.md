@@ -53,44 +53,59 @@ scripts/build_index.py   # writes the package index pages; used by the release w
 
 `pyproject.toml` builds `google-stubs` with `uv_build`'s `namespace = true`, as `google-stubs/` has no
 `__init__.pyi`. The runtime dependencies are `google-api-core` and `google-auth`, because the stubs import their
-types (`Retry`, `ClientInfo`, `ClientOptions`, `Credentials`); `google-cloud-storage` itself is only a dev
+types (`Retry`, `Policy`, `ClientInfo`, `ClientOptions`, `Credentials`); `google-cloud-storage` itself is only a dev
 dependency, pinned to the version the stubs are checked against.
 
 ## Writing stubs
 
-- **Copy signatures from the runtime, completely.** A stubbed method lists every parameter, in the runtime's order
-  and kind (positional-or-keyword, keyword-only, `**kwargs`); don't drop parameters or add `*`. stubtest enforces
-  this. Print the signatures with
+- **Signatures: copy them from the runtime, completely**: every parameter, in the runtime's order and kind; don't
+  drop any or add `*` (stubtest enforces this). Print them with
   `uv run python -I -c "import inspect; from google.cloud.storage import Blob; print(inspect.signature(Blob.reload))"`.
-- **Types come from the docstrings and the code**, not guesses: e.g. `if_etag_match` is `str | Iterable[str]`,
-  `checksum` is `Literal["md5", "crc32c", "auto"] | None`. Precondition parameters are `int | None`.
-- **Defaults:** write literal defaults (`None`, `60`, `"noAcl"`, `False`) as they are, and `...` for the rest
-  (`retry=DEFAULT_RETRY`, sentinels, mutable defaults).
-- **No `Any`.** For `**kwargs`, use `Unpack[TypedDict]` with the keys the code accepts (see `_BlobKwargs`). Where
-  the real type lives in an untyped library (`requests.Session` for `Client(_http=...)`), use `object` and say what
-  it is in a comment.
-- **Private aliases stay per module.** `_Timeout`, `_Retry` and `_ETag` are redefined in each module that uses them:
-  importing a `_name` from another module is `reportPrivateUsage` in pyright, and a public alias would be reported
-  by stubtest as missing at runtime.
-- **Stub-only public names** (e.g. `BlobIterator`, the type `list_blobs` returns) need an entry in
-  `tests/allowlist.txt` and a comment in the stub saying they don't exist at runtime.
-- **Return types:** properties backed by the resource's JSON (`size`, `content_type`, ...) are `X | None`, as they
-  are `None` until the resource is loaded.
-- **Test only what the stubs don't spell out.** stubtest already checks the signatures, so `tests/check_storage.py`
-  doesn't restate annotations (no `assert_type(blob.size, int | None)`). Add a check for:
-  - how imports resolve: the empty `cloud/__init__.pyi`, the `partial` fallback to unstubbed modules
-  - `**kwargs: Unpack[...]`, overloads and generics, where the caller's type isn't written out in the stub
-  - stub-only names, used the way the README tells callers to (`TYPE_CHECKING` import, annotations)
-  - a few realistic calls, to show that the parameter types accept real values (`timeout=(3, 10)`,
-    `retry=DEFAULT_RETRY`)
+- **Types come from the docstrings and the code**, not guesses. For example, the docstring types `if_etag_match` as
+  `Union[str, Set[str]]`, but the code joins any iterable, so the stub has `str | Iterable[str]`.
+  - Parameters take read-only types (`Mapping`, `Sequence`): `dict` and `list` are invariant, so a parameter typed
+    `dict[str, str | None]` rejects a caller's `dict[str, str]` variable, while `Mapping[str, str | None]` accepts
+    it. Prefer `Sequence` to `Iterable` where the runtime takes `len()` or may iterate twice: a generator would be
+    empty when a request is retried.
+  - Where the runtime mutates the value, the parameter has to be a `list` or `dict`. Callers must then annotate
+    their variable with exactly the element type, so give it a public stub-only name. For example,
+    `generate_signed_post_policy_v4` appends to `conditions`, so the parameter is `list[PostPolicyCondition]`, and
+    callers write `conditions: list[PostPolicyCondition] = [...]`.
+  - JSON-backed properties (`size`, `content_type`, ...) return `X | None`, as they are `None` until loaded, unless
+    the code defaults them: `requester_pays` reads `False` when the field is missing, so it is `bool`.
+  - No `Any`: `**kwargs` is `Unpack[TypedDict]` of the keys the code accepts (see `_BlobKwargs` for
+    `Bucket.get_blob`). A type from an untyped library is `object` with a comment: `Client(_http=...)` takes a
+    `requests.Session`, so it is `_http: object | None = None  # a requests.Session`.
+- **Defaults:** literal defaults as they are (`timeout: _Timeout = 60`, `projection: str = "noAcl"`), `...` for the
+  rest: objects, sentinels and mutable defaults (`retry: _Retry = ...` for `retry=DEFAULT_RETRY`).
+- **Private aliases (`_Timeout`, `_Retry`, ...) are redefined in each module**: `from ...blob import _Timeout` in
+  `bucket.pyi` is `reportPrivateUsage` in pyright, and a public `Timeout` would be reported by stubtest as missing at
+  runtime.
+- **Stub-only public names** need a `tests/allowlist.txt` entry and a comment saying they don't exist at runtime:
+  `list_blobs` returns a `BlobIterator` in the stubs, but an untyped `HTTPIterator` at runtime. A `TypedDict` for a
+  value callers build in a variable is public: `kwargs = {"timeout": 30}` is inferred as `dict[str, int]`, which an
+  `upload_kwargs: UploadKwargs` parameter rejects, so callers need the name to write `kwargs: UploadKwargs = ...`.
+  One only for `**kwargs` or a return value stays private (`_BlobKwargs`).
+- **Deprecated members** (a runtime warning, or "deprecated" in the docstring) get `@deprecated` from `warnings`, so
+  pyright strict reports a call to `Bucket.from_string`; deprecated parameters get a comment.
+- **No suppressions**, except `# type: ignore[override]` with a comment where the runtime really narrows its base
+  class: `BufferedIOBase.read` accepts `size=None`, but `BlobReader.read` raises on it, so its stub is
+  `def read(self, size: int = -1)` with the ignore.
+- **Tests: only what the stubs don't spell out**, as stubtest checks the signatures: no
+  `assert_type(blob.size, int | None)`, which only restates the stub. `tests/check_storage.py` covers:
+  - import resolution: the empty `cloud/__init__.pyi`, and the `partial` fallback to unstubbed modules
+  - what callers get from `Unpack` kwargs, overloads and generics (`blob.open("rb")` returns a `BlobReader`)
+  - stub-only names, imported under `if TYPE_CHECKING:` and used in annotations
+  - a few realistic calls, to show the types accept real values (`timeout=(3, 10)`, `retry=DEFAULT_RETRY`)
 
-  Expect an error with a rule-specific ignore (`# pyright: ignore[reportCallIssue]`): `reportUnnecessaryTypeIgnoreComment`
-  is an error, so the check fails if the stubs stop rejecting that call.
-- When adding a class or method, also update the coverage table in `README.md`.
+  A call the stubs must reject is written with a rule-specific ignore, such as
+  `bucket.get_blob("a", content_type="x")  # pyright: ignore[reportCallIssue]`. `reportUnnecessaryTypeIgnoreComment`
+  is an error, so the check fails if the stubs start accepting the call.
+- **README:** when adding a module or leaving members out, update the coverage table and "Not stubbed yet".
 
 ## Versions
 
-The package has its own semantic version (`0.1.0`), independent of `google-cloud-storage`'s; it is not updated
+The package has its own semantic version, independent of `google-cloud-storage`'s; it is not updated
 for every `google-cloud-storage` release. The dev pin (`google-cloud-storage==X.Y.Z`) is the version stubtest
 checks against, and the Versions table in `README.md` maps each release to it.
 
@@ -108,9 +123,10 @@ To release:
 5. Commit and push, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 
 The workflow fails unless the tag is exactly `v` + the `pyproject.toml` version and the changelog section is dated.
-It runs the same checks as above, builds with `uv build --no-sources`, uploads the files and rebuilds the project
-and root index pages in the R2 bucket, then creates a GitHub Release from the changelog section and posts the result
-to Slack. It refuses to overwrite a published version, so a bad release is fixed by publishing a new version.
+It runs ruff, pyright and stubtest (not markdownlint), builds with `uv build --no-sources`, checks the files with
+`twine check`, uploads them and rebuilds the project and root index pages in the R2 bucket, then creates a GitHub
+Release from the changelog section and posts the result to Slack. It refuses to overwrite a published version, so a
+bad release is fixed by publishing a new version.
 
 The `publish` job runs in the `agnos-packages` environment, which only `v*` tags may deploy to. The R2 secrets
 (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_ACCOUNT_ID`, `R2_BUCKET`) are set on that environment;

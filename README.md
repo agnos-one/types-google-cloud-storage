@@ -1,8 +1,8 @@
 # types-google-cloud-storage
 
 Partial typing stubs for [`google-cloud-storage`](https://pypi.org/project/google-cloud-storage/), which ships no
-type information of its own. Without them, pyright, mypy reports the import as missing stubs, and every parameter of
-`Client`, `Bucket` and `Blob` as `Unknown`. [typeshed](https://github.com/python/typeshed) has no stubs
+type information of its own. Without them, pyright and mypy report the import as missing stubs, and every parameter
+of `Client`, `Bucket` and `Blob` as `Unknown`. [typeshed](https://github.com/python/typeshed) has no stubs
 for this library.
 
 The stubs are checked against the runtime library with mypy's `stubtest`; [Versions](#versions) lists the
@@ -10,7 +10,9 @@ The stubs are checked against the runtime library with mypy's `stubtest`; [Versi
 
 ## Install
 
-Releases are published to the Agnos package index at `https://pkgs.agnos.one/simple/`. With uv:
+Releases are published to the Agnos package index at `https://pkgs.agnos.one/simple/`.
+
+Install with [uv](https://docs.astral.sh/uv/):
 
 ```toml
 # pyproject.toml
@@ -27,7 +29,8 @@ types-google-cloud-storage = { index = "agnos" }
 uv add --dev types-google-cloud-storage
 ```
 
-The package has no runtime code: install `google-cloud-storage` itself as a regular dependency.
+The package has no runtime code: install `google-cloud-storage` itself as a regular dependency. It requires Python
+3.14 or later.
 
 ## What's covered
 
@@ -41,9 +44,10 @@ full signature, so all its parameters can be passed, positionally or by keyword,
 | `.retry`, `.ip_filter`, `.constants`, `.exceptions` | all (in `.exceptions`, the exception classes) |
 
 Not stubbed yet: the `acl`, `notification` and `hmac_key` modules and the members that use them (`Bucket.acl`,
-`Bucket.notification`, `Client.list_hmac_keys`, and so on), the deprecated `Blob.download_as_string`, and
-`Bucket.clear_lifecyle_rules`, a misspelled alias. The package is marked `partial` (PEP 561), so modules it doesn't
-stub, such as `google.cloud.exceptions`, still resolve to the installed libraries.
+`Bucket.notification`, `Client.list_hmac_keys`, and so on), the `iam`, `grpc_client` and `version` modules, the
+deprecated `Blob.download_as_string`, and `Bucket.clear_lifecyle_rules`, a misspelled alias. The package is marked
+`partial` (PEP 561), so modules it doesn't stub, such as `google.cloud.exceptions`, still resolve to the installed
+libraries.
 
 ```python
 from datetime import timedelta
@@ -61,17 +65,12 @@ for item in client.list_blobs("my-bucket", prefix="reports/"):  # Blob
 
 ## Notes
 
-- **Some names exist only in the stubs:** the iterator and page types, and `TypedDict`s for the dicts that callers
-  build. To annotate with them, import them under `if TYPE_CHECKING:`.
-  - `list_blobs` returns a `BlobIterator` and `list_buckets` a `BucketIterator`: iterators of `Blob` / `Bucket` with
-    `next_page_token`, `num_results` and `pages`, an iterator of `BlobPage` / `BucketPage`; a `BlobIterator` also
-    has `prefixes`, the "folders" a `delimiter` groups blobs into, complete once it is exhausted. At runtime they are
-    an `HTTPIterator` and its `Page`s from `google-api-core`.
-  - `bucket.CorsPolicy` is one entry of `Bucket.cors`, `client.PostPolicyCondition` one condition of a POST policy
-    (annotate a list built in a variable as `list[PostPolicyCondition]`), `client.SignedPostPolicyV4` what
-    `generate_signed_post_policy_v4` returns, and `transfer_manager.UploadKwargs` / `DownloadKwargs` /
-    `ChunkDownloadKwargs` / `BlobConstructorKwargs` the `*_kwargs` dicts of the transfer manager. At runtime they are
-    plain `dict`s.
+- **Some names exist only in the stubs**, for annotations: the iterators `list_blobs` and `list_buckets` return
+  (`BlobIterator`, `BucketIterator`) and their pages, `TypedDict`s for typing the `transfer_manager` kwargs, and
+  `CorsPolicy`, `PostPolicyCondition` and `ClientOptionsDict` for values that callers build. Import them under
+  `if TYPE_CHECKING:`.
+- **Some arguments must be a `dict`, not any mapping**, because the library writes to them: `headers` of
+  `generate_signed_url` gets the signed headers added, and `client_options` given as a dict gets `api_key`.
 - **`Blob.open` needs a literal mode.** Its overloads return `TextIOWrapper` for `"r"` / `"rt"` / `"w"` / `"wt"`,
   `BlobReader` for `"rb"` and `BlobWriter` for `"wb"`, and reject the other modes, which raise at runtime. A mode held
   in a `str` variable has to be narrowed to one of those literals first.
@@ -92,3 +91,4 @@ signatures haven't changed.
 | --- | --- |
 | 0.1.0 | 3.17.2 |
 | 0.2.0 | 3.17.2 |
+| 0.3.0 | 3.17.2 |

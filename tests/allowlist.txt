@@ -4,8 +4,8 @@ google.cloud.storage.bucket.BlobPage
 google.cloud.storage.bucket.CorsPolicy
 google.cloud.storage.client.BucketIterator
 google.cloud.storage.client.BucketPage
+google.cloud.storage.client.ClientOptionsDict
 google.cloud.storage.client.PostPolicyCondition
-google.cloud.storage.client.SignedPostPolicyV4
 google.cloud.storage.transfer_manager.UploadKwargs
 google.cloud.storage.transfer_manager.DownloadKwargs
 google.cloud.storage.transfer_manager.ChunkDownloadKwargs

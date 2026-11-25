@@ -7,6 +7,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-25
+
+Checked with `stubtest` against `google-cloud-storage` 3.17.2.
+
+### Added
+
+- `ClientOptionsDict`, a stub-only type for `client_options` given as a dict.
+- `BlobPage.prefixes`; `client`, `max_results` and `page_number` on `BlobIterator` and `BucketIterator`; `raw_page`
+  on `BlobPage` and `BucketPage`.
+
+### Changed
+
+- `headers` of `Blob.generate_signed_url()` and `Bucket.generate_signed_url()` is a `dict`, no longer any `Mapping`:
+  V4 signing adds headers to it, and raises `TypeError` on a read-only mapping.
+- `client_options` of `Client` and the `from_service_account_*()` factories is a `ClientOptions` or a
+  `ClientOptionsDict`, no longer any `Mapping`: the library only converts a real `dict`, and writes `api_key` into it.
+
+### Removed
+
+- `SignedPostPolicyV4` as a public name: it is the private `_SignedPostPolicyV4`, as callers only receive it from
+  `Client.generate_signed_post_policy_v4()`.
+
+### Fixed
+
+- `LifecycleRuleAbortIncompleteMultipartUpload` and `Bucket.add_lifecycle_abort_incomplete_multipart_upload_rule()`
+  accept `matches_prefix` and `matches_suffix`, which Cloud Storage supports for this rule besides `age`.
+- `Blob.upload_from_string()` accepts `content_type=None`.
+- `Blob.generate_signed_url()` accepts `generation` as a `str`.
+- `PostPolicyCondition` accepts any sequence, such as a `list[str]` variable or a tuple, not only a
+  `list[str | int]`.
+
 ## [0.2.0] - 2026-11-25
 
 Checked with `stubtest` against `google-cloud-storage` 3.17.2.
@@ -22,9 +53,10 @@ Checked with `stubtest` against `google-cloud-storage` 3.17.2.
   helpers, IAM, `generate_signed_url()` and `generate_upload_policy()`, and the configuration classes
   `IAMConfiguration`, `SoftDeletePolicy`, `BucketEncryption`, `EncryptionEnforcementConfig`,
   `LifecycleRuleConditions` and the `LifecycleRule*` rules.
-- `Blob`: every remaining member except `acl`, including all properties, `open()` (overloaded by mode), `compose()`,
-  `rewrite()`, `update_storage_class()`, `download_to_file()`, `create_resumable_upload_session()` and IAM, and the
-  `Retention`, `ObjectContexts` and `ObjectCustomContextPayload` classes.
+- `Blob`: every remaining member except `acl` and the deprecated `download_as_string()`, including all properties,
+  `open()` (overloaded by mode), `compose()`, `rewrite()`, `update_storage_class()`, `download_to_file()`,
+  `create_resumable_upload_session()` and IAM, and the `Retention`, `ObjectContexts` and `ObjectCustomContextPayload`
+  classes.
 - New modules: `fileio` (`BlobReader`, `BlobWriter`), `batch` (`Batch`, also exported from `google.cloud.storage`),
   `transfer_manager`, `ip_filter`, `constants` and `exceptions`; the `is_*` predicates in `retry`.
 - Stub-only types: `BucketIterator` and `BucketPage` for `list_buckets()`, `CorsPolicy`, `PostPolicyCondition`,
@@ -46,6 +78,7 @@ with `stubtest` against `google-cloud-storage` 3.17.2.
   `pages`, an iterator of the stub-only `BlobPage`.
 - Every stubbed method has the library's full signature, with no `Any`.
 
-[Unreleased]: https://github.com/agnos-one/types-google-cloud-storage/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/agnos-one/types-google-cloud-storage/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/agnos-one/types-google-cloud-storage/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/agnos-one/types-google-cloud-storage/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/agnos-one/types-google-cloud-storage/releases/tag/v0.1.0
