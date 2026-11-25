@@ -1,0 +1,16 @@
+{
+    // Skip files ignored by git
+    "gitignore": true,
+    // markdownlint rules
+    "config": {
+        "table-column-style": {
+            "style": "compact"
+        },
+        "line-length": {
+            "line_length": 120,
+            "tables": false,
+            "code_blocks": false
+        }
+    }
+}
+

@@ -1,0 +1,3 @@
+# Stub-only types: they don't exist at runtime, so they are only for annotations.
+google.cloud.storage.bucket.BlobIterator
+google.cloud.storage.bucket.BlobPage
